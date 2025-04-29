@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, Truck } from "lucide-react"
+import { ArrowLeft, Truck, X } from "lucide-react"
 import Layout from "~/components/layout/Layout"
 import { Button } from "~/components/ui/button"
 import { Input } from "~/components/ui/input"
@@ -28,6 +28,7 @@ export default function CheckoutPage() {
   const [currentProvince, setCurrentProvince] = useState<string | null>(null)
   const [isZipCodeValid, setIsZipCodeValid] = useState(false)
   const [showConfetti, setShowConfetti] = useState(false)
+  const [showModal, setShowModal] = useState(false)
   const [windowSize, setWindowSize] = useState({
     width: typeof window !== 'undefined' ? window.innerWidth : 0,
     height: typeof window !== 'undefined' ? window.innerHeight : 0,
@@ -159,25 +160,34 @@ export default function CheckoutPage() {
 
   const handleProceedToPayment = () => {
     setShowConfetti(true)
-    setTimeout(() => {
-      setShowConfetti(false)
-      // Add your payment processing logic here
-    }, 5000) // Show confetti for 5 seconds
+    setShowModal(true)
+  }
+
+  const handleCloseModal = () => {
+    setShowModal(false)
+    setShowConfetti(false)
   }
 
   if (isProductLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="text-xl">Loading...</div>
-      </div>
+      <Layout title="Checkout" description="Complete your purchase">
+        <div className="flex min-h-[60vh] items-center justify-center">
+          <div className="text-center">
+            <div className="mb-4 h-12 w-12 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto"></div>
+            <p className="text-xl font-medium text-gray-600">Loading checkout...</p>
+          </div>
+        </div>
+      </Layout>
     )
   }
 
   if (productError || !product) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="text-xl text-red-500">Error: {productError || "Product not found"}</div>
-      </div>
+      <Layout title="Checkout" description="Complete your purchase">
+        <div className="flex min-h-[60vh] items-center justify-center">
+          <div className="text-center text-red-500">Error: {productError || "Product not found"}</div>
+        </div>
+      </Layout>
     )
   }
 
@@ -192,6 +202,44 @@ export default function CheckoutPage() {
           gravity={0.3}
         />
       )}
+      
+      {showModal && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+          onClick={handleCloseModal}
+        >
+          <div 
+            className="relative w-full max-w-md rounded-lg bg-white p-6 shadow-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              className="absolute right-4 top-4 rounded-full p-1 hover:bg-gray-100"
+              onClick={handleCloseModal}
+            >
+              <X className="h-5 w-5" />
+            </button>
+            <h2 className="mb-4 text-2xl font-bold text-center">This is the end of the Demo!</h2>
+            <p className="text-center text-gray-600">
+              Thank you for trying out our checkout process. This is a demonstration of our e-commerce platform.
+            </p>
+            <div className="my-4 text-center">
+              <p className="text-lg font-semibold text-primary">
+                You were about to spend <span className="text-2xl font-bold">${totalCost}</span> on a Next.js app!
+              </p>
+              <p className="mt-2 text-sm text-gray-500">Be proud of your purchase! 🚀</p>
+            </div>
+            <div className="mt-6 flex justify-center">
+              <Button 
+                onClick={() => router.push("/")}
+                className="bg-primary hover:bg-primary/90 transition-all duration-300 transform hover:scale-105 active:scale-95 shadow-lg hover:shadow-xl"
+              >
+                Return to Home
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="container mx-auto px-4 pt-4 pb-16">
         <Button variant="ghost" className="mb-6 flex items-center gap-2 text-lg" onClick={() => router.push("/")}>
           <ArrowLeft className="h-5 w-5" />
