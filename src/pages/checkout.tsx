@@ -11,6 +11,11 @@ import { Label } from "~/components/ui/label"
 import { Card, CardContent } from "~/components/ui/card"
 import { Separator } from "~/components/ui/separator"
 import { useProduct } from "~/context/ProductContext"
+import dynamic from "next/dynamic"
+
+const ReactConfetti = dynamic(() => import('react-confetti'), {
+  ssr: false
+})
 
 export default function CheckoutPage() {
   const router = useRouter()
@@ -22,6 +27,23 @@ export default function CheckoutPage() {
   const [allZipCodes, setAllZipCodes] = useState<any[]>([])
   const [currentProvince, setCurrentProvince] = useState<string | null>(null)
   const [isZipCodeValid, setIsZipCodeValid] = useState(false)
+  const [showConfetti, setShowConfetti] = useState(false)
+  const [windowSize, setWindowSize] = useState({
+    width: typeof window !== 'undefined' ? window.innerWidth : 0,
+    height: typeof window !== 'undefined' ? window.innerHeight : 0,
+  })
+
+  useEffect(() => {
+    const handleResize = () => {
+      setWindowSize({
+        width: window.innerWidth,
+        height: window.innerHeight,
+      })
+    }
+
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
 
   // Fetch all zip codes on component mount
   useEffect(() => {
@@ -135,6 +157,14 @@ export default function CheckoutPage() {
   const isFreeShipping = totalProductValue > 30000
   const totalCost = product ? (totalProductValue + (isFreeShipping ? 0 : shippingCost)).toFixed(2) : "0.00"
 
+  const handleProceedToPayment = () => {
+    setShowConfetti(true)
+    setTimeout(() => {
+      setShowConfetti(false)
+      // Add your payment processing logic here
+    }, 5000) // Show confetti for 5 seconds
+  }
+
   if (isProductLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
@@ -153,6 +183,15 @@ export default function CheckoutPage() {
 
   return (
     <Layout title="Checkout" description="Complete your purchase">
+      {showConfetti && (
+        <ReactConfetti
+          width={windowSize.width}
+          height={windowSize.height}
+          recycle={false}
+          numberOfPieces={500}
+          gravity={0.3}
+        />
+      )}
       <div className="container mx-auto px-4 pt-4 pb-16">
         <Button variant="ghost" className="mb-6 flex items-center gap-2 text-lg" onClick={() => router.push("/")}>
           <ArrowLeft className="h-5 w-5" />
@@ -372,8 +411,9 @@ export default function CheckoutPage() {
                 </div>
 
                 <Button 
-                  className="mt-6 w-full" 
+                  className="mt-6 w-full transition-transform duration-300 hover:scale-105 active:scale-95" 
                   disabled={!isFreeShipping && (!currentProvince || isCalculating)}
+                  onClick={handleProceedToPayment}
                 >
                   Proceed to Payment
                 </Button>
