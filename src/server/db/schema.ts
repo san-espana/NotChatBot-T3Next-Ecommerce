@@ -20,7 +20,7 @@ export const products = pgTable('products', {
   image: text('image'),
 });
 
-export const zipCodes = pgTable("Zip_Codes", {
+export const zipCodes = pgTable("zip_codes", {
   id: serial("id").primaryKey(),
   province: text("province").notNull(),
   zone: integer("zone").notNull(),

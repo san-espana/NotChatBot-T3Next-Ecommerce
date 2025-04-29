@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { ArrowLeft, Truck } from "lucide-react"
@@ -19,25 +19,121 @@ export default function CheckoutPage() {
   const [postalCode, setPostalCode] = useState("")
   const [shippingCost, setShippingCost] = useState(0)
   const [isCalculating, setIsCalculating] = useState(false)
+  const [allZipCodes, setAllZipCodes] = useState<any[]>([])
+  const [currentProvince, setCurrentProvince] = useState<string | null>(null)
+  const [isZipCodeValid, setIsZipCodeValid] = useState(false)
+
+  // Fetch all zip codes on component mount
+  useEffect(() => {
+    const fetchZipCodes = async () => {
+      try {
+        const response = await fetch('/api/zipcodes')
+        const data = await response.json()
+        setAllZipCodes(data)
+      } catch (error) {
+        console.error('Error fetching zip codes:', error)
+      }
+    }
+    fetchZipCodes()
+  }, [])
+
+  // Validate zipcode on change
+  useEffect(() => {
+    const isValid = /^\d{4}$/.test(postalCode)
+    setIsZipCodeValid(isValid)
+    if (!isValid) {
+      setCurrentProvince(null)
+      setShippingCost(0)
+    }
+  }, [postalCode])
+
+  // Calculate shipping cost
+  const calculateShipping = (currentQuantity: number = quantity) => {
+    if (!isZipCodeValid) return
+    
+    const zipCodeNum = parseInt(postalCode)
+    const matchingZone = allZipCodes.find(
+      zone => zipCodeNum >= zone.minimum && zipCodeNum <= zone.maximum
+    )
+
+    if (matchingZone) {
+      setCurrentProvince(matchingZone.province)
+      
+      // Calculate shipping cost based on zone
+      let cost = 0
+      switch (matchingZone.zone) {
+        case 1:
+          cost = 1000
+          break
+        case 2:
+          cost = 5000
+          break
+        case 3:
+          cost = 15000
+          break
+        case 4:
+          cost = 25000
+          break
+      }
+
+      // Check if total product value exceeds 30000 for free shipping
+      const totalProductValue = Number(product?.price || 0) * currentQuantity
+      setShippingCost(totalProductValue > 30000 ? 0 : cost)
+    } else {
+      // Find the nearest range
+      const nearestZone = allZipCodes.reduce((nearest, current) => {
+        const currentMinDistance = Math.min(
+          Math.abs(zipCodeNum - current.minimum),
+          Math.abs(zipCodeNum - current.maximum)
+        )
+        const nearestMinDistance = Math.min(
+          Math.abs(zipCodeNum - nearest.minimum),
+          Math.abs(zipCodeNum - nearest.maximum)
+        )
+        return currentMinDistance < nearestMinDistance ? current : nearest
+      })
+
+      setCurrentProvince(nearestZone.province)
+      
+      // Calculate shipping cost based on nearest zone
+      let cost = 0
+      switch (nearestZone.zone) {
+        case 1:
+          cost = 1000
+          break
+        case 2:
+          cost = 5000
+          break
+        case 3:
+          cost = 15000
+          break
+        case 4:
+          cost = 25000
+          break
+      }
+
+      // Check if total product value exceeds 30000 for free shipping
+      const totalProductValue = Number(product?.price || 0) * quantity
+      setShippingCost(totalProductValue > 30000 ? 0 : cost)
+    }
+  }
 
   // Handle quantity change
   const handleQuantityChange = (newQuantity: number) => {
     if (newQuantity < 1) return
     setQuantity(newQuantity)
+
+    // Only calculate if we have a valid zipcode and shipping is not free
+    const newTotalValue = product ? Number(product.price) * newQuantity : 0
+    if (isZipCodeValid && newTotalValue <= 30000) {
+      calculateShipping(newQuantity)
+    }
   }
 
-  // Calculate shipping cost
-  const calculateShipping = (code: string) => {
-    if (!code) return
-    setIsCalculating(true)
-    // Simple shipping calculation based on quantity
-    const cost = quantity >= 3 ? 0 : 10 // Free shipping for 3 or more items
-    setShippingCost(cost)
-    setIsCalculating(false)
-  }
-
-  // Calculate total cost
-  const totalCost = product ? (Number(product.price) * quantity + shippingCost).toFixed(2) : "0.00"
+  // Calculate total cost and check for free shipping
+  const totalProductValue = product ? Number(product.price) * quantity : 0
+  const isFreeShipping = totalProductValue > 30000
+  const totalCost = product ? (totalProductValue + (isFreeShipping ? 0 : shippingCost)).toFixed(2) : "0.00"
 
   if (isProductLoading) {
     return (
@@ -113,14 +209,93 @@ export default function CheckoutPage() {
                     <Label htmlFor="postalCode" className="mb-2 block">
                       Enter your postal code to calculate shipping
                     </Label>
-                    <div className="flex gap-2">
+                    <div className="flex flex-col gap-2">
                       <Input
                         id="postalCode"
-                        placeholder="Enter postal code"
+                        placeholder="Enter 4-digit postal code"
                         value={postalCode}
-                        onChange={(e) => setPostalCode(e.target.value)}
+                        onChange={(e) => {
+                          const newValue = e.target.value.replace(/\D/g, '') // Only allow numbers
+                          setPostalCode(newValue)
+                          
+                          // Calculate immediately when 4 digits are entered
+                          if (newValue.length === 4) {
+                            const zipCodeNum = parseInt(newValue)
+                            const matchingZone = allZipCodes.find(
+                              zone => zipCodeNum >= zone.minimum && zipCodeNum <= zone.maximum
+                            )
+
+                            if (matchingZone) {
+                              setCurrentProvince(matchingZone.province)
+                              
+                              // Calculate shipping cost based on zone
+                              let cost = 0
+                              switch (matchingZone.zone) {
+                                case 1:
+                                  cost = 1000
+                                  break
+                                case 2:
+                                  cost = 5000
+                                  break
+                                case 3:
+                                  cost = 15000
+                                  break
+                                case 4:
+                                  cost = 25000
+                                  break
+                              }
+
+                              // Check if total product value exceeds 30000 for free shipping
+                              const totalProductValue = Number(product?.price || 0) * quantity
+                              setShippingCost(totalProductValue > 30000 ? 0 : cost)
+                            } else {
+                              // Find the nearest range
+                              const nearestZone = allZipCodes.reduce((nearest, current) => {
+                                const currentMinDistance = Math.min(
+                                  Math.abs(zipCodeNum - current.minimum),
+                                  Math.abs(zipCodeNum - current.maximum)
+                                )
+                                const nearestMinDistance = Math.min(
+                                  Math.abs(zipCodeNum - nearest.minimum),
+                                  Math.abs(zipCodeNum - nearest.maximum)
+                                )
+                                return currentMinDistance < nearestMinDistance ? current : nearest
+                              })
+
+                              setCurrentProvince(nearestZone.province)
+                              
+                              // Calculate shipping cost based on nearest zone
+                              let cost = 0
+                              switch (nearestZone.zone) {
+                                case 1:
+                                  cost = 1000
+                                  break
+                                case 2:
+                                  cost = 5000
+                                  break
+                                case 3:
+                                  cost = 15000
+                                  break
+                                case 4:
+                                  cost = 25000
+                                  break
+                              }
+
+                              // Check if total product value exceeds 30000 for free shipping
+                              const totalProductValue = Number(product?.price || 0) * quantity
+                              setShippingCost(totalProductValue > 30000 ? 0 : cost)
+                            }
+                          } else {
+                            setCurrentProvince(null)
+                            setShippingCost(0)
+                          }
+                        }}
+                        maxLength={4}
+                        pattern="\d*"
                       />
-                      <Button onClick={() => calculateShipping(postalCode)}>Calculate</Button>
+                      <p className="text-sm text-slate-500">
+                        Please enter exactly 4 numbers for your postal code
+                      </p>
                     </div>
                   </div>
 
@@ -131,23 +306,20 @@ export default function CheckoutPage() {
                       <span>Shipping information</span>
                     </div>
 
-                    {quantity >= 3 ? (
+                    {isFreeShipping ? (
                       <div className="mt-2 rounded-md bg-green-50 p-3 text-sm text-green-700">
-                        <strong>Free shipping!</strong> You qualify for free shipping with 3 or more copies.
+                        <strong>Free shipping!</strong> Your order exceeds $30,000
                       </div>
-                    ) : postalCode ? (
+                    ) : currentProvince ? (
                       <div className="mt-2 text-sm">
                         <p>
-                          Shipping cost to postal code <strong>{postalCode}</strong>:{" "}
+                          Shipping to <strong>{currentProvince}</strong>:{" "}
                           <strong>${shippingCost.toFixed(2)}</strong>
-                        </p>
-                        <p className="mt-1 text-xs text-slate-500">
-                          Add {3 - quantity} more {3 - quantity === 1 ? "copy" : "copies"} to qualify for free shipping!
                         </p>
                       </div>
                     ) : (
                       <p className="mt-2 text-sm text-slate-500">
-                        Enter your postal code to see shipping costs. Free shipping on orders of 3 or more copies!
+                        Enter a valid 4-digit postal code to see shipping costs
                       </p>
                     )}
                   </div>
@@ -172,18 +344,14 @@ export default function CheckoutPage() {
 
                   <div className="flex justify-between">
                     <span className="text-slate-600">Shipping</span>
-                    {isCalculating ? (
+                    {isFreeShipping ? (
+                      <span className="text-green-600">Free</span>
+                    ) : isCalculating ? (
                       <span className="text-sm italic text-slate-500">Calculating...</span>
+                    ) : currentProvince ? (
+                      `$${shippingCost.toFixed(2)}`
                     ) : (
-                      <span>
-                        {shippingCost === 0 && quantity >= 3 ? (
-                          <span className="text-green-600">Free</span>
-                        ) : postalCode ? (
-                          `$${shippingCost.toFixed(2)}`
-                        ) : (
-                          <span className="text-sm italic text-slate-500">Enter postal code</span>
-                        )}
-                      </span>
+                      <span className="text-sm italic text-slate-500">Enter postal code</span>
                     )}
                   </div>
 
@@ -192,7 +360,9 @@ export default function CheckoutPage() {
                   <div className="flex justify-between font-medium">
                     <span>Total</span>
                     <span>
-                      {postalCode && !isCalculating ? (
+                      {isFreeShipping ? (
+                        `$${totalCost}`
+                      ) : currentProvince && !isCalculating ? (
                         `$${totalCost}`
                       ) : (
                         <span className="text-sm italic text-slate-500">Pending shipping</span>
@@ -201,7 +371,10 @@ export default function CheckoutPage() {
                   </div>
                 </div>
 
-                <Button className="mt-6 w-full" disabled={!postalCode || isCalculating}>
+                <Button 
+                  className="mt-6 w-full" 
+                  disabled={!isFreeShipping && (!currentProvince || isCalculating)}
+                >
                   Proceed to Payment
                 </Button>
 
