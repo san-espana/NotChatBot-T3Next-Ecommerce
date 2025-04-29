@@ -29,7 +29,7 @@ export function ProductProvider({ children }: { children: React.ReactNode }) {
         const response = await fetch("/api/products")
         if (!response.ok) throw new Error("Failed to fetch product")
         const data = await response.json()
-        setProduct(data[0]) // Assuming we want the first product
+        setProduct(data[0])
       } catch (err) {
         setError(err instanceof Error ? err.message : "An error occurred")
       } finally {
